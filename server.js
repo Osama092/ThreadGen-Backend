@@ -1,107 +1,29 @@
-
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
+const cors = require('cors');
+const { getRequests } = require('./dashboard/getRequests.js');
+const { deleteRequest } = require('./dashboard/deleteRequest.js');
+const { addRequest } = require('./dashboard/addRequest.js'); 
+
+const { getKeys } = require('./apiKeys/getKeys.js');
+const { deleteKey } = require('./apiKeys/deleteKey.js');
+const { addApiKey } = require('./apiKeys/addKey.js');
+
 const app = express();
-const port = process.env.PORT || 5000;
-const { addEntryToJsonFile } = require('./test.js');
-const bodyParser = require('body-parser'); // Import body-parser to handle form data
+const PORT = 5000;
 
-app.use(bodyParser.json()); // Middleware to parse JSON bodies
-app.use(bodyParser.urlencoded({ extended: true })); // Middleware to parse URL-encoded bodies
+app.use(cors()); // Ensure cors is defined and used
 
 
-app.use(express.json());
+//Main dashbord
+app.get('/requests', getRequests);
+app.delete('/requests/:id', deleteRequest);
+app.post('/requests', addRequest);
 
-const dataFilePath = path.join(__dirname, 'data.json');
+//Api keys
+app.get('/api-keys', getKeys);
+app.delete('/api-keys/:id', deleteKey);
+app.post('/api-keys', addApiKey);
 
-app.use(express.static('public'));
-
-
-app.get('/add-key', (req, res) => {
-  addEntryToJsonFile('data.json'); // Adjust the filename if needed
-  res.send('New entry added to data.json');
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
-
-
-app.delete('/delete/:id', (req, res) => {
-  const idToDelete = req.params.id;
-
-  fs.readFile(dataFilePath, 'utf8', (err, data) => {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to read data file' });
-    }
-
-    let jsonData = JSON.parse(data);
-    const initialLength = jsonData.length;
-
-    // Filter out the entry with the specified ID
-    jsonData = jsonData.filter(entry => entry.id !== idToDelete);
-
-    if (jsonData.length === initialLength) {
-      return res.status(404).json({ error: 'Entry not found' });
-    }
-
-    fs.writeFile(dataFilePath, JSON.stringify(jsonData, null, 2), (err) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to write data file' });
-      }
-
-      res.status(200).json({ message: 'Entry deleted successfully' });
-    });
-  });
-});
-
-
-
-// Function to read messages from JSON file
-const getMessagesFromFile = () => {
-  const data = fs.readFileSync(path.join(__dirname, 'data.json'), 'utf-8'); // Read file synchronously
-  return JSON.parse(data); // Parse JSON data
-};
-
-// Function to write messages to JSON file
-const writeMessagesToFile = (messages) => {
-  fs.writeFileSync(path.join(__dirname, 'data.json'), JSON.stringify(messages, null, 2)); // Write file synchronously
-};
-
-// Route to handle SSE
-app.get('/events', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  const messages = getMessagesFromFile(); // Get messages from JSON file
-  let messageIndex = 0;
-
-  // Function to send a JSON message
-  const sendEvent = (data) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
-  };
-
-  // Send messages one by one every second
-  const intervalId = setInterval(() => {
-    if (messageIndex < messages.length) {
-      sendEvent(messages[messageIndex]); // Send the next message from the JSON file
-      messageIndex++;
-    } else {
-      clearInterval(intervalId); // Stop sending messages when all are sent
-      res.end();
-    }
-  }, 1000);
-
-  // Clear interval when the connection is closed
-  req.on('close', () => {
-    clearInterval(intervalId);
-    res.end();
-  });
-});
-
-
-
-
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
-
