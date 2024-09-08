@@ -1,0 +1,72 @@
+[
+    {
+        "id": "M9N0O",
+        "name": "sample_video_1080p",
+        "video":"https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+        "category": "sample",
+        "description": "Sample video of Big Buck Bunny in 1080p.",
+        "timeframe":[
+            {
+                "start_time":"00:02:00",
+                "end_time":"00:05:00"
+            }
+        ],
+        "created_date": "05 09 2024"
+    },
+    {
+        "id": "A1B2C",
+        "name": "tears_of_steel",
+        "video": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+        "category": "short_film",
+        "description": "A Blender short film.",
+        "timeframe":[
+            {
+                "start_time":"00:02:00",
+                "end_time":"00:05:00"
+            }
+        ],
+        "created_date": "05 09 2024"
+    },
+    {
+        "id": "D3E4F",
+        "name": "sintel_trailer",
+        "video": "https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4",
+        "category": "animation",
+        "description": "A trailer for Sintel.",
+        "timeframe":[
+            {
+                "start_time":"00:02:00",
+                "end_time":"00:05:00"
+            }
+        ],
+        "created_date": "05 09 2024"
+    },
+    {
+        "id": "G5H6I",
+        "name": "elephants_dream",
+        "video": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "category": "animation",
+        "description": "The first open movie project.",
+        "timeframe":[
+            {
+                "start_time":"00:02:00",
+                "end_time":"00:05:00"
+            }
+        ],
+        "created_date": "05 09 2024"
+    },
+    {
+        "id": "J7K8L",
+        "name": "nasa_launch",
+        "video": "https://media.istockphoto.com/id/1398952864/video/panorama-beach-blue-sky-best-wave-splashing-sandy-summer-united-states.mp4?s=mp4-640x640-is&k=20&c=9ETqPFfINcoPs-0aO1U0Gw7f2uk7mNwGmIY4mxgoTog=",
+        "category": "space",
+        "description": "NASA video of Earth from space.",
+        "timeframe":[
+            {
+                "start_time":"00:02:00",
+                "end_time":"00:05:00"
+            }
+        ],
+        "created_date": "05 09 2024"
+    }
+]
