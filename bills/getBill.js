@@ -10,10 +10,10 @@ const getBills = (req, res) => {
       res.status(500).json({ error: 'Failed to read data file' });
     } else {
       const bills = JSON.parse(data);
-      const bill = bills.find(sub => sub.user === user);
+      const userBills = bills.filter(sub => sub.user === user);
       
-      if (bill) {
-        res.json(bill);
+      if (userBills.length > 0) {
+        res.json(userBills);
       } else {
         res.status(404).json({ error: 'Subscription not found' });
       }
