@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-
 const filePath = path.join(__dirname, '/requests.json');
 let clients = [];
 let clientId = 0;
@@ -10,6 +9,10 @@ const sseRequests = (req, res) => {
   if (!email) {
     return res.status(400).send('Email parameter is required');
   }
+
+
+
+  // Update the global email
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
