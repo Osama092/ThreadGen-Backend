@@ -13,31 +13,30 @@ jest.mock('fs', () => ({
 }));
 
 // MOCK 'path' MODULE: This is the crucial fix!
-// We will use the actual path.join logic but control the base path.
-const path = require('path');
 const MOCK_BASE_DIR = '/test/project/root'; // A predictable base directory for our mock
-jest.mock('path', () => ({
-  ...jest.requireActual('path'), // Keep other path functions as actual
-  // We're mocking `path.join` to behave like the real one, but starting from a controlled base.
-  // This will correctly resolve the '..' in '../tempUserData'.
-  join: jest.fn((...args) => {
-    // If the first argument is __dirname, replace it with our mock base dir
-    const resolvedArgs = args.map(arg => {
-      // In the threadUpload.js file, path.join is called with `__dirname`
-      // The `__dirname` in the context of the running test will point to the directory of `threadUpload.js`.
-      // We need to ensure our mocked `path.join` properly handles this relative path.
-      // A simple way is to treat the first argument (which is __dirname) as part of our mock base path.
-      // Or, we can just replace the *first* argument (which will be `__dirname`) with a mock base.
-      // Let's make it simpler and assume the first arg is always `__dirname` and replace it for the mock.
-      if (typeof arg === 'string' && arg.includes('Backend') && arg.includes('dummy')) { // Heuristic for __dirname
-        return MOCK_BASE_DIR;
+
+jest.mock('path', () => {
+  const actualPathModule = jest.requireActual('path'); // Get the actual 'path' module
+
+  return {
+    ...actualPathModule, // Spread all actual path functions
+
+    // Ensure 'join' is a mock function with the corrected logic
+    join: jest.fn((...args) => {
+      // Check if this is the specific call from threadUpload.js's destination function:
+      // path.join(__dirname, '../tempUserData')
+      if (args.length === 2 && args[1] === '../tempUserData') {
+        // MOCK_BASE_DIR is accessible from the outer scope here.
+        return actualPathModule.join(MOCK_BASE_DIR, args[1]);
       }
-      return arg;
-    });
-    // Now, use the real path.join to perform the actual joining logic
-    return jest.requireActual('path').join(...resolvedArgs);
-  }),
-}));
+      // For all other calls to path.join, use the actual path.join logic.
+      return actualPathModule.join(...args);
+    }),
+
+    // Ensure 'extname' is also a mock function that wraps the actual implementation
+    extname: jest.fn(actualPathModule.extname), // Fixed: Wrap in jest.fn()
+  };
+});
 
 // Mock 'uuid' module
 jest.mock('uuid', () => ({
@@ -87,8 +86,6 @@ jest.mock('multer', () => {
 
 
 // Now, require the module under test. This will trigger the multer.diskStorage call.
-// Adjust the path as per your project structure.
-// Given your error trace: `routes/threads/threadUpload.js`
 require('../../routes/threads/threadUpload');
 
 
@@ -97,22 +94,22 @@ require('../../routes/threads/threadUpload');
 // -----------------------------------------------------------------------------
 describe('Multer Disk Storage Destination Logic', () => {
 
-  // Expected resolved temporary directory path
-  // MOCK_BASE_DIR + /../tempUserData should resolve to /test/project/tempUserData
-  const EXPECTED_TEMP_DIR_PATH = path.join(MOCK_BASE_DIR, '../tempUserData');
+  const mockedPath = require('path'); // `require('path')` here gets the mocked version
+  const EXPECTED_TEMP_DIR_PATH = mockedPath.join(MOCK_BASE_DIR, '../tempUserData');
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    // Re-initialize path.join mock for each test for isolation
-    path.join.mockImplementation((...args) => {
-      const resolvedArgs = args.map(arg => {
-        if (typeof arg === 'string' && arg.includes('Backend') && arg.includes('dummy')) {
-          return MOCK_BASE_DIR;
-        }
-        return arg;
-      });
-      return jest.requireActual('path').join(...resolvedArgs);
+    jest.clearAllMocks(); // This clears call counts for all mocks, including mockedPath.extname and mockedPath.join
+
+    // Re-initialize or re-affirm the mock implementation for path.join for each test.
+    const actualPathModule = jest.requireActual('path');
+    mockedPath.join.mockImplementation((...args) => {
+      if (args.length === 2 && args[1] === '../tempUserData') {
+        return actualPathModule.join(MOCK_BASE_DIR, args[1]);
+      }
+      return actualPathModule.join(...args);
     });
+    // mockedPath.extname is already jest.fn(actualPathModule.extname) from the main mock.
+    // jest.clearAllMocks() handles resetting its call history.
   });
 
   test('should create the temporary directory with correct path and recursive option', () => {
@@ -124,7 +121,7 @@ describe('Multer Disk Storage Destination Logic', () => {
     destinationFunction(req, file, cb);
 
     expect(fs.mkdirSync).toHaveBeenCalledTimes(1);
-    expect(path.join).toHaveBeenCalledWith(expect.any(String), '../tempUserData');
+    expect(mockedPath.join).toHaveBeenCalledWith(expect.any(String), '../tempUserData');
     expect(fs.mkdirSync).toHaveBeenCalledWith(EXPECTED_TEMP_DIR_PATH, { recursive: true });
 
     expect(cb).toHaveBeenCalledTimes(1);
@@ -157,6 +154,10 @@ describe('Multer Disk Storage Destination Logic', () => {
 
     const filenameFunction = capturedMulterStorageConfig.filename;
     filenameFunction(req, file, cb);
+
+    expect(require('uuid').v4).toHaveBeenCalled();
+    // This assertion should now work as mockedPath.extname is a jest.fn()
+    expect(mockedPath.extname).toHaveBeenCalledWith('myvideo.mov');
 
     expect(req.uniqueFilename).toBe('mock-uuid-for-filename.mov');
     expect(cb).toHaveBeenCalledWith(null, 'mock-uuid-for-filename.mov');
