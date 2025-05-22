@@ -1,4 +1,9 @@
 {
-    "ignore": ["requests/*.json"]
+"ignore": [
+  "requests/*.json",
+  "player/**",
+  "UserData/**",
+  "tempUserData/**"
+]    
   }
   

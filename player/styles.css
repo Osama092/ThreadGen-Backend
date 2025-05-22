@@ -1,0 +1,725 @@
+/* ==============================================
+   PLAYER CONTROLS & LAYOUT
+   ============================================== */
+
+/* Controls group styling */
+.vds-controls-group {
+    --media-controls-padding: 0px;
+    --media-controls-in-transition: opacity 0.2s ease-in;
+    --media-controls-out-transition: opacity 0.2s ease-out;
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease-in-out;
+    z-index: 20; /* Ensure controls are above the click area */
+    background-color: rgba(0, 0, 0, 0.95);
+    padding: 0px 0px;
+    box-sizing: border-box;
+}
+
+.vds-icon{
+    background-color: '';
+}
+
+
+/* Show controls on hover */
+media-player:hover .vds-controls-group {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+media-player {
+    /* Maintain 16:9 aspect ratio */
+    aspect-ratio: 16 / 9;
+    width: auto; /* Fixed width */
+    height: auto; /* Height adjusts automatically to maintain aspect ratio */
+    
+    /* Border styling (10px added outside) */
+    border: 10px solid;
+    box-sizing: content-box;
+    overflow: visible;
+    
+    /* Positioning */
+    position: relative;
+}
+
+/* ==============================================
+   UNMUTE OVERLAY - CONSOLIDATED
+   ============================================== */
+.unmute-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    cursor: pointer;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+}
+
+.unmute-overlay.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.unmute-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(51, 51, 51, 0.85);
+    padding: calc(5% + 10px); /* Proportional padding */
+    border-radius: 20px;
+    text-align: center;
+    opacity: 0.8;
+    /* Set proportional size - 40% width and 60% height of player */
+    width: calc(40% - 20px);
+    height: calc(60% - 20px);
+    max-width: 80%; /* Maintain max-width for very large screens */
+    position: relative; /* Added for child positioning reference */
+}
+
+.unmute-icon {
+    position: relative;
+    /* Set to 70% of the overlay box */
+    width: 70%;
+    height: 70%;
+    margin-bottom: 15px;
+}
+
+.unmute-icon img {
+    width: 100%;
+    height: 100%;
+}
+
+.unmute-cross {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.unmute-cross::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    /* Thicker cross line for better visibility at larger size */
+    height: calc(2% + 6px);
+    background-color: white;
+    border-radius: 4px; /* Increased for better appearance at large size */
+    transform: translate(-50%, -50%) rotate(-45deg);
+    animation: crossFade 1.5s ease-in-out infinite;
+}
+
+.unmute-content h3 {
+    color: white;
+    /* Much larger text size to match the icon scale - approximately 70% proportional */
+    font-size: calc(10% + 24px);
+    margin: 20px 0 0 0; /* Added top margin to separate from larger icon */
+    font-weight: normal;
+    /* Additional properties to ensure text is properly sized and visible */
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+    max-width: 90%; /* Ensure text doesn't overflow the container */
+}
+
+@keyframes crossFade {
+    0%, 100% {
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+/* ==============================================
+   PLAY/PAUSE INDICATOR
+   ============================================== */
+
+/* Container for play/pause indicators */
+.play-pause-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 15;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none;
+}
+
+/* Common styling for play and pause indicators */
+.pause-indicator {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    width: 90px;
+    height: 90px;
+}
+
+
+.pause-indicator {
+    animation: continuousPulse 1s ease-in-out infinite;
+}
+
+/* Style indicator icons */
+.pause-indicator img {
+    width: 40px;
+    height: 40px;
+    filter: brightness(0) invert(1); /* Make icon white */
+}
+
+/* Fade classes for showing/hiding indicators */
+.fade-in {
+    opacity: 1;
+}
+
+.fade-out {
+    opacity: 0;
+}
+
+/* Animation for quick triple pulse effect */
+@keyframes rapidTriplePulse {
+    0%, 15% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    5% {
+        transform: scale(1.3);
+        opacity: 1;
+    }
+    10% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    20% {
+        transform: scale(1.3);
+        opacity: 1;
+    }
+    25% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    35% {
+        transform: scale(1.3);
+        opacity: 1;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    /* Pause from 40% to 100% */
+}
+
+/* Animation for continuous pulse effect */
+@keyframes continuousPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 20px rgba(255, 255, 255, 0);
+        opacity: 0.6;
+
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+        opacity: 0.8;
+
+    }
+}
+
+/* ==============================================
+   VIDEO CLICK AREA
+   ============================================== */
+
+/* Invisible layer for click detection */
+.video-click-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10; /* Above video but below controls */
+    cursor: pointer;
+}
+
+/* ==============================================
+   CONTROL BUTTONS
+   ============================================== */
+
+/* Common button styling */
+.vds-button {
+    /* CSS variables for customization */
+    --media-button-color: var(--media-controls-color, #f5f5f5);
+    --media-button-size: 40px;
+    --media-button-icon-size: 80%;
+    --media-button-padding: 0px;
+    --media-button-border-radius:0px;
+    --media-button-hover-bg: rgba(0, 0, 0, 0.2);
+    --media-button-hover-transform: scale(1);
+    --media-button-hover-transition: transform 0.2s ease-in;
+    --media-button-touch-hover-border-radius: 100%;
+    --media-button-touch-hover-bg: rgba(0, 0, 0, 0.2);
+    z-index: 25; /* Ensure buttons are clickable */
+}
+
+/* ==============================================
+   CAPTIONS
+   ============================================== */
+
+/* Caption styling */
+media-captions {
+    z-index: 15; /* Above click area but below controls */
+    bottom: 0;
+    transition: bottom 0.15s linear;
+  
+    /* CSS variables for customization */
+    --media-captions-padding: 1%;
+    --media-cue-backdrop: blur(8px);
+    --media-cue-bg: rgba(0, 0, 0, 0.7);
+    --media-cue-border-radius: 2px;
+    --media-cue-border: unset;
+    --media-cue-box-shadow: var(--cue-box-shadow);
+    --media-cue-color: white;
+    --media-cue-display-bg: unset;
+    --media-cue-display-border-radius: unset;
+    --media-cue-display-padding: unset;
+    --media-cue-font-size: calc(var(--overlay-height) / 100 * 4.5);
+    --media-cue-line-height: calc(var(--cue-font-size) * 1.2);
+    --media-cue-padding-x: calc(var(--cue-font-size) * 0.4);
+    --media-cue-padding-x: calc(var(--cue-font-size) * 0.6);
+}
+
+/* Move captions up when controls are visible */
+media-player[data-controls] media-captions {
+    bottom: 80px;
+}
+
+/* Hide captions when interacting with time slider */
+media-player[data-preview] media-captions {
+    opacity: 0;
+}
+
+/* Toggle visibility of caption button icons */
+.vds-button[data-active] .cc-off-icon,
+.vds-button:not([data-active]) .cc-on-icon {
+  display: none;
+}
+
+/* ==============================================
+   TIME SLIDER
+   ============================================== */
+
+/* Time slider styling */
+.vds-slider {
+    /* CSS variables for customization */
+    --media-slider-height: 40px;
+  
+    --media-slider-track-width: 100%;
+    --media-slider-track-height: 5px;
+    --media-slider-track-bg: rgb(255 255 255 / 0.3);
+    --media-slider-track-fill-bg: var(--media-brand, #f5f5f5);
+    --media-slider-track-progress-bg: rgb(255 255 255 / 0.5);
+    --media-slider-track-border-radius: 2px;
+    --media-slider-focused-track-width: var(--media-slider-track-width);
+    --media-slider-focused-track-height: calc(var(--media-slider-track-height) * 1.25);
+  
+    --media-slider-thumb-border: 1px solid #cacaca;
+    --media-slider-thumb-border-radius: 9999px;
+    --media-slider-thumb-bg: #fff;
+    --media-slider-thumb-transition: opacity 0.2s ease-in, box-shadow 0.2s ease;
+    --media-slider-focused-thumb-size: calc(var(--media-slider-thumb-size) * 1.1);
+    --media-slider-focused-thumb-shadow: 0 0 0 4px hsla(0, 0%, 100%, 0.4);
+    z-index: 25; /* Ensure slider is clickable */
+}
+
+/* Custom illusion slider (visual non-linear progress) */
+.illusion-slider-container {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    height: 20px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.illusion-slider-track {
+    position: absolute;
+    width: 100%;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.illusion-slider-progress {
+    position: absolute;
+    width: 0;
+    height: 20px;
+    background-color: white;
+    border-radius: 8px;
+    transition: width 0.1s linear;
+}
+
+
+
+/* ==============================================
+   BUTTON ICON DISPLAY LOGIC
+   ============================================== */
+
+/* Sound button icon toggling */
+.vds-button:not([data-muted]) .mute-icon,
+.vds-button:not([data-state='high']) .volume-high-icon {
+  display: none;
+}
+
+/* Caption button icon toggling */
+.vds-button[data-active] .cc-off-icon,
+.vds-button:not([data-active]) .cc-on-icon {
+  display: none;
+}
+
+/* Play/Pause button icon toggling */
+.vds-button[data-paused] .pause-icon,
+.vds-button:not([data-paused]) .play-icon {
+  display: none;
+}
+
+/* Fullscreen button icon toggling */
+.vds-button[data-active] .fs-enter-icon,
+.vds-button:not([data-active]) .fs-exit-icon {
+  display: none;
+}
+
+/* ==============================================
+   BUFFERING INDICATOR
+   ============================================== */
+
+/* Buffering animation */
+@keyframes media-buffering-spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+}
+
+/* Buffering spinner styling */
+.vds-buffering-indicator::before {
+    content: "";
+    display: inline-block;
+    width: var(--media-buffering-size);
+    height: var(--media-buffering-size);
+    border: var(--media-buffering-track-width) solid var(--media-buffering-track-color);
+    border-top: var(--media-buffering-track-fill-width) solid var(--media-buffering-track-fill-color);
+    border-radius: 50%;
+    animation: var(--media-buffering-animation);
+}
+/* ==============================================
+   REPLAY BUTTON - UPDATED TO MATCH PAUSE STYLE
+   ============================================== */
+
+/* Replay container overlay */
+.replay-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 15; /* Above normal controls but below forums */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+/* Show class for replay container */
+.replay-container.show {
+    opacity: 0.9;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+/* Replay button styling - updated to match pause indicator style */
+.replay-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    width: 90px;
+    height: 90px;
+    /* Remove padding since pause doesn't have it */
+    transition: transform 0.2s ease;
+}
+
+/* Replay button icon - simplified to match pause icon */
+.replay-button img {
+    width: 40px;
+    height: 40px;
+    filter: brightness(0) invert(1); /* Make icon white */
+    /* Remove margin-bottom since we're removing the text */
+}
+
+/* Remove the text span - pause indicator doesn't have text */
+.replay-button span {
+    display: none;
+}
+
+/* Add the continuous pulse animation matching the pause indicator */
+/* Add the continuous pulse animation matching the pause indicator */
+.replay-button {
+    animation: continuousPulse 1s ease-in-out infinite;
+}
+
+/* ==============================================
+   THUMBNAIL HANDLING
+   ============================================== */
+
+/* Thumbnail container for paused state */
+.thumbnail-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5; /* Above video but below controls and other overlays */
+    display: none; /* Hidden by default */
+    background-color: transparent; /* Changed from black to transparent */
+}
+
+/* Thumbnail image styling */
+.thumbnail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Changed from contain to cover to fill the entire container */
+    display: block; /* Ensures there's no extra space */
+}
+
+/* ==============================================
+   END THUMBNAIL
+   ============================================== */
+
+/* End thumbnail container for ended state */
+.end-thumbnail-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 25; /* Above regular thumbnail but below replay button */
+    display: none; /* Hidden by default */
+    background-color: transparent; /* Changed from black to transparent */
+}
+
+/* End thumbnail image styling */
+.end-thumbnail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Changed from contain to cover to fill the entire container */
+    display: block; /* Ensures there's no extra space */
+}
+
+/* Show end thumbnail only when video has ended */
+media-player[data-ended] .end-thumbnail-container {
+    display: block;
+}
+
+/* Make replay overlay semi-transparent to show thumbnail behind */
+.replay-container {
+    z-index: 31; /* Higher than end thumbnail */
+    background-color: rgba(0, 0, 0, 0.3); /* Semi-transparent to show thumbnail */
+}
+
+/* ==============================================
+   START THUMBNAIL
+   ============================================== */
+
+/* Start thumbnail container */
+.start-thumbnail-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 35; /* Above most elements but below the unmute overlay */
+    display: none; /* Hidden by default, JS will control display */
+    background-color: black;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    display: none;
+}
+
+/* Start thumbnail image styling */
+.start-thumbnail-image {
+    width: 100%;
+    height: 100%;
+    object-fit: fit; /* Maintains aspect ratio */
+}
+
+/* ==============================================
+   UNMUTE OVERLAY CROSS ICON
+   ============================================== */
+   .mute-icon-cross {
+    position: absolute;
+    /* Set to 70% of its container */
+    width: 70%;
+    height: 70%;
+    pointer-events: none;
+    opacity: 0;
+    animation: crossFade 1.5s ease-in-out infinite;
+    top: 15%; /* Center in container */
+    left: 15%; /* Center in container */
+}
+
+.mute-icon-cross::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    /* Thicker line for better visibility */
+    height: calc(2% + 6px);
+    background-color: white;
+    border-radius: 4px;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    transform-origin: center;
+}
+
+/* Remove the ::after line */
+.mute-icon-cross::after {
+    content: none;
+}
+
+@keyframes crossFade {
+    0%, 100% {
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+
+
+/* ==============================================
+   PLAYER BOX WITH HEADING
+   ============================================== */
+
+/* Container for the player and heading */
+.player-container {
+    max-width: 800px; /* Adjust this value to make the player smaller */
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Heading styling */
+.player-heading {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+    text-align: center;
+}
+
+/* Adjust the media-player size to fit in the container */
+media-player {
+    width: 100%; /* Takes full width of the container */
+    max-width: 100%;
+    margin: 0 auto;
+    /* Keep other properties from your original CSS */
+}
+
+#loading-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    color: white;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#error-message {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+.error-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+#error-message button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#error-message button:hover {
+    background-color: #2980b9;
+}

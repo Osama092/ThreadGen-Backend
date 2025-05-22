@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player with Enhanced Debugging</title>
+    <script src="https://cdn.vidstack.io/player.core" type="module"></script>
+    <link rel="stylesheet" href="https://cdn.vidstack.io/player/theme.css" />
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="re_scripts.js"></script>
+</head>
+<body>
+    <!-- Player container - hidden initially -->
+    <div id="player-container" style="display: none;">
+        <media-player title="Sprite Fight" muted="true" hasCaptions="true" playbackRate=2>
+            <media-provider>
+                <track src="en_dolphin.com.vtt" kind="subtitles" label="English" srclang="en-US" default />
+            </media-provider>
+
+            <!-- Custom Thumbnail for Paused State -->
+            <div class="thumbnail-container">
+                <img src="thumbnail.jpg" alt="Video Thumbnail" class="thumbnail-image">
+            </div>
+            <!-- End Video Thumbnail -->
+            <div class="end-thumbnail-container">
+                <img src="end_thumbnail.gif" alt="End Video Thumbnail" class="end-thumbnail-image">
+            </div>
+            <!-- Start Video Thumbnail -->
+            <div class="start-thumbnail-container">
+                <img src="start_thumbnail.jpg" alt="Start Video Thumbnail" class="start-thumbnail-image">
+            </div>
+
+            <!-- Replay Button -->
+            <div class="replay-container">
+                <div class="replay-button">
+                    <img src="media-icons/raw/replay.svg" alt="Replay Icon" />
+                </div>
+            </div>
+
+            <!-- Caption -->
+            <media-captions class="vds-captions"></media-captions>
+
+            <!-- Buffer Indicator-->
+            <div class="vds-buffering-indicator">
+                <media-spinner class="vds-buffering-spinner"></media-spinner>
+            </div>
+
+            <!-- Unmute Overlay - Consolidated -->
+            <div class="unmute-overlay">
+                <div class="unmute-content">
+                    <div class="unmute-icon">
+                        <img src="media-icons/raw/volume-high.svg" alt="Unmute Icon" />
+                        <div class="unmute-cross"></div>
+                    </div>
+                    <h3>Click to unmute</h3>
+                </div>
+            </div>
+
+            <!-- Play/Pause Click Indicator -->
+            <div class="play-pause-indicator">
+                <div class="pause-indicator">
+                    <img src="media-icons/raw/pause.svg" alt="Pause Indicator" />
+                </div>
+            </div>
+
+            <!-- Video Click Area for Play/Pause -->
+            <div class="video-click-area"></div>
+
+            <!-- Custom Time Slider (hidden but used for tracking) -->
+            <div id="custom-time-slider" style="display: none;"></div>
+
+            <media-controls-group class="vds-controls-group">
+                <!-- Control buttons (unchanged) -->
+                <media-play-button class="vds-button">
+                    <img src="media-icons/raw/play.svg" class="play-icon vds-icon" alt="Play Icon" />
+                    <img src="media-icons/raw/pause.svg" class="pause-icon vds-icon" alt="Pause Icon" />
+                </media-play-button>
+                <media-seek-button class="media-button vds-button" seconds="-10">
+                    <img src="media-icons/raw/seek-backward-10.svg" class="vds-icon" />
+                </media-seek-button>
+
+                <div class="vds-time-slider vds-slider" >
+                    <div class="illusion-slider-track"></div>
+                    <div class="illusion-slider-progress"></div>
+                </div>
+
+                <media-mute-button class="vds-button">
+                    <img src="media-icons/raw/mute.svg" class="mute-icon vds-icon" alt="Mute Icon" />
+                    <img src="media-icons/raw/volume-high.svg" class="volume-high-icon vds-icon" alt="Unmute" />
+                </media-mute-button>
+
+                <media-captions class="vds-captions"></media-captions>
+
+                <media-caption-button class="vds-button">
+                    <img src="media-icons/raw/closed-captions.svg" class="cc-off-icon vds-icon " alt="CC Off" />
+                    <img src="media-icons/raw/closed-captions-on.svg" class="cc-on-icon vds-icon" alt="CC On" />
+                </media-caption-button>
+            
+                <media-fullscreen-button class="vds-button">
+                    <img src="media-icons/raw/fullscreen.svg" class="fs-enter-icon vds-icon" alt="fullscreen On Icon">
+                    <img src="media-icons/raw/fullscreen-exit.svg" class="fs-exit-icon vds-icon" alt="exit fullscreen">
+                </media-fullscreen-button>
+            </media-controls-group>
+        </media-player>
+    </div>
+</body>
+</html>
