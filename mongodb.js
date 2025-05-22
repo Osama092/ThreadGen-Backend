@@ -64,7 +64,6 @@ async function startChangeStream(onChange) {
     return null;
   }
 }
-
 // Function to close change stream
 function closeChangeStream() {
   if (changeStream) {
@@ -73,17 +72,47 @@ function closeChangeStream() {
   }
 }
 
-// Close the MongoDB client when the application is terminated
+async function closeDatabaseConnection() {
+  try {
+    // Check if the client exists and is connected
+    if (client && typeof client.close === 'function') {
+      // Check if topology exists and is connected, for more robust check with newer driver versions
+      // This check might vary slightly depending on the MongoDB driver version
+      const isConnected = client.topology && client.topology.isConnected();
+      if (isConnected) {
+        await client.close();
+        console.log("MongoDB client closed via explicit call.");
+      } else if (!isConnected && client.topology) {
+        // If topology exists but says not connected, perhaps it's already closing or closed
+        console.log("MongoDB client was not connected, no action taken for closeDatabaseConnection or already closed.");
+      } else {
+         // If no topology, it might be an older client or not initialized properly
+         // Still try to close if the close method exists.
+         await client.close();
+         console.log("MongoDB client closed (no topology info).");
+      }
+    }
+  } catch (error) {
+    console.error("Error closing MongoDB connection:", error);
+  }
+}
+
+// SIGINT handler should also use closeDatabaseConnection if desired for consistency
 process.on('SIGINT', async () => {
   closeChangeStream();
-  await client.close();
-  console.log("MongoDB client closed.");
+  await closeDatabaseConnection(); // Use the new function
+  // await client.close(); // Original line
+  // console.log("MongoDB client closed."); // Original line
   process.exit(0);
 });
+
+
+
 
 module.exports = { 
   connectToDatabase, 
   startChangeStream,
   closeChangeStream,
-  client 
+  client,
+  closeDatabaseConnection
 };

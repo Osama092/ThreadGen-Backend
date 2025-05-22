@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x] # Test against Node.js versions 18 and 20
+        node-version: [20.x] # Test only against Node.js version 20.x
 
     # Define services (databases, message queues) needed for your tests
     services:
@@ -44,7 +44,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4 # Official GitHub Action to checkout code
 
-    # Step 2: Set up Node.js for the current job's matrix version
+    # Step 2: Set up Node.js (single version specified in matrix)
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
@@ -64,23 +64,14 @@ jobs:
         MONGODB_URI: mongodb://localhost:27017/threadgen_test_db # Use 'localhost' as services run on the same network
         RABBITMQ_URI: amqp://localhost:5672
         NODE_ENV: test # Often good to set NODE_ENV to 'test'
-        # Add any other environment variables your application might need during tests.
-        # For example, if your mongodb.js or rabbitmq.js files use process.env variables
-        # to get these URIs, they will pick them up from here.
-        # Ensure your application code (e.g., mongodb.js, utils/rabbitmq.js) is configured
-        # to read these environment variables.
+        # Ensure your application code (e.g., mongodb.js, utils/rabbitmq.js)
+        # is configured to read these environment variables from process.env.
 
     # Optional Step 5: Upload code coverage report (Example using Codecov)
-    # This step is conditional and only runs for one Node.js version to avoid duplicate uploads.
-    # You'll need to set up Codecov and add a CODECOV_TOKEN to your GitHub repository secrets.
+    # If you don't want to use Codecov or a similar service, you can delete this entire step.
+    # If you keep it, you'll need to set up Codecov and add a CODECOV_TOKEN
+    # to your GitHub repository secrets (Settings > Secrets and variables > Actions).
     # - name: Upload coverage to Codecov
-    #   if: matrix.node-version == '20.x' # Or your primary Node version
     #   uses: codecov/codecov-action@v4
     #   with:
-    #     token: ${{ secrets.CODECOV_TOKEN }} # Store this in GitHub > Settings > Secrets and variables > Actions
-    #     # By default, it looks for common coverage file names like lcov.info or clover.xml.
-    #     # You might need to explicitly specify if your setup differs:
-    #     # file: ./coverage/lcov.info
-    #     # or
-    #     # file: ./coverage/clover.xml
-    #     # flags: unittests # Optional: for categorizing coverage reports in Codecov
+    #     token: ${{ secrets.CODECOV_TOKEN }}
