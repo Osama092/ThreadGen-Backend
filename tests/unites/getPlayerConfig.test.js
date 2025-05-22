@@ -8,17 +8,22 @@ const mockFindOneUser = jest.fn();
 const mockApiKeysCollection = { findOne: mockFindOneApiKey };
 const mockUsersCollection = { findOne: mockFindOneUser };
 
-// Define mockDb as a function that returns the collection factory
+// Create a single, persistent mock for the .collection() method
+const mockCollectionMethod = jest.fn((collectionName) => {
+  if (collectionName === 'api_keys') {
+    return mockApiKeysCollection;
+  }
+  if (collectionName === 'users') {
+    return mockUsersCollection;
+  }
+  // Return a default mock if other collections are unexpectedly requested
+  return { findOne: jest.fn().mockResolvedValue(null) };
+});
+
+// mockDb (representing client.db) will now return an object
+// that uses this persistent mockCollectionMethod
 const mockDb = jest.fn((dbName) => ({
-  collection: jest.fn((collectionName) => {
-    if (collectionName === 'api_keys') {
-      return mockApiKeysCollection;
-    }
-    if (collectionName === 'users') {
-      return mockUsersCollection;
-    }
-    return { findOne: jest.fn() };
-  }),
+  collection: mockCollectionMethod, // Use the same mock function instance
 }));
 
 // fs mocks (only need existSync, readFileSync, mkdirSync, writeFileSync from the source)

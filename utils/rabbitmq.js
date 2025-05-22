@@ -3,12 +3,13 @@ const amqp = require('amqplib');
 let connection = null;
 let channels = {}; 
 
+const rabbitmqUrl = process.env.RABBITMQ_URI || 'amqp://localhost'; // Use env var
 // Connects to RabbitMQ and returns the connection
 async function connectRabbitMQ() {
   if (connection) return connection; 
 
   try {
-    connection = await amqp.connect('amqp://localhost');
+    connection = await amqp.connect(rabbitmqUrl);
     console.log('RabbitMQ connected');
     return connection;
   } catch (err) {

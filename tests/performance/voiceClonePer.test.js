@@ -1,94 +1,110 @@
 // tests/performance/voiceClonePer.test.js
-// This script uses Jest-like syntax for mocking and test structure.
 
 const { performance } = require('perf_hooks');
 const path = require('path');
-// const fs = require('fs'); // fs will be mocked by Jest
-const { Writable, Readable } = require('stream'); // Keep this here for type clarity if needed outside mocks, though Jest handles mock scope
+const { Writable, Readable } = require('stream'); // For type clarity and use in fs mock
 
-// ----- FILE TO TEST -----
-// Assuming cloneVoice.js is structured to be required and its dependencies are managed.
+// Define a performance threshold (e.g., 5 seconds)
+const PERFORMANCE_THRESHOLD_MS = 5000;
 
 // ----- MOCKS -----
 
-// 1. Mock '../../utils/rabbitmq'
-const mockSendToQueue = jest.fn().mockReturnValue(true);
-const mockAssertQueue = jest.fn().mockResolvedValue(true);
+// 1. Mock rabbitmq
+const mockSendToQueue = jest.fn().mockReturnValue(true); // Default to true
+const mockAssertQueue = jest.fn().mockResolvedValue(true); // Mock as resolved
 const mockGetChannelForRoute = jest.fn().mockResolvedValue({
     assertQueue: mockAssertQueue,
     sendToQueue: mockSendToQueue,
 });
 
-// Adjust the path here to be correct relative to this test file's location
-// For example, if cloneVoice.js is in 'routes/users/' and this test is in 'tests/performance/',
-// and rabbitmq.js is in 'utils/', the path might be '../../../utils/rabbitmq'
-// Or, if your Jest config handles moduleNameMapper, that could also resolve it.
-// For this example, I'll assume a relative path that might work if 'utils' is a sibling to 'tests'.
-// **YOU MUST ADJUST THIS PATH BASED ON YOUR ACTUAL PROJECT STRUCTURE**
-jest.mock('../../utils/rabbitmq', () => ({
+// Adjust the path here to be correct relative to this test file's location.
+// If tests are in 'project_root/tests/performance/' and utils is in 'project_root/utils/',
+// the path should be '../../../utils/rabbitmq'.
+jest.mock('../../utils/rabbitmq', () => ({ // CORRECTED PATH (ASSUMPTION)
     getChannelForRoute: mockGetChannelForRoute,
-}), { virtual: true });
+}));
 
 
 // 2. Mock 'fs' (File System)
-const originalFs = jest.requireActual('fs');
+const originalFs = jest.requireActual('fs'); // For setup/teardown if needed
 
 jest.mock('fs', () => {
     const actualFs = jest.requireActual('fs');
-    // IMPORTANT: Require 'stream' inside the mock factory
-    const { Readable, Writable } = require('stream');
+    // IMPORTANT: Require 'stream' inside the mock factory for fs streams
+    const { Readable: ActualReadable, Writable: ActualWritable } = require('stream');
 
     return {
-        ...actualFs, // Use actual fs for things not explicitly mocked
+        ...actualFs, // Use actual fs for things not explicitly mocked (like existsSync if not mocked below)
         mkdirSync: jest.fn((dirPath, options) => {
-            // console.log(`Mock fs.mkdirSync: ${dirPath}`);
+            // console.log(`Mock fs.mkdirSync called for: ${dirPath}`);
             if (!actualFs.existsSync(dirPath)) {
-                 actualFs.mkdirSync(dirPath, options);
+                 actualFs.mkdirSync(dirPath, { recursive: true, ...options }); // Ensure recursive for safety
             }
         }),
+        // Provide promises interface if your code uses it (e.g. fs.promises.mkdir)
+        promises: {
+            mkdir: jest.fn(async (dirPath, options) => {
+                // console.log(`Mock fs.promises.mkdir called for: ${dirPath}`);
+                 if (!actualFs.existsSync(dirPath)) {
+                    actualFs.mkdirSync(dirPath, { recursive: true, ...options });
+                }
+            }),
+            rename: jest.fn().mockResolvedValue(undefined),
+            unlink: jest.fn().mockResolvedValue(undefined),
+            // Add other fs.promises methods if used by cloneVoice.js
+        },
         createReadStream: jest.fn(filePath => {
             // console.log(`Mock fs.createReadStream for: ${filePath}`);
-            const readable = new Readable();
-            readable._read = () => {};
-            readable.push(Buffer.from('dummy audio data for stream processing'));
-            readable.push(null);
+            const readable = new ActualReadable();
+            readable._read = () => {}; // No-op _read
+            // Simulate some data then end
+            process.nextTick(() => {
+                readable.push(Buffer.from('dummy audio data for stream processing'));
+                readable.push(null); // End of stream
+            });
             return readable;
         }),
         createWriteStream: jest.fn(filePath => {
             // console.log(`Mock fs.createWriteStream for: ${filePath}`);
-            const writable = new Writable();
+            const writable = new ActualWritable();
             writable._write = (chunk, encoding, callback) => {
+                // Simulate successful write
                 callback();
             };
+            // Emit 'finish' shortly after to simulate stream completion for pipeline
             process.nextTick(() => writable.emit('finish'));
             return writable;
         }),
         unlinkSync: jest.fn(filePath => {
             // console.log(`Mock fs.unlinkSync: ${filePath}`);
         }),
-        existsSync: actualFs.existsSync,
+        existsSync: jest.fn((pathToCheck) => {
+            // Default mock for existsSync, can be overridden in tests if needed
+            // console.log(`Mock fs.existsSync called for: ${pathToCheck}`);
+            return false; // Or actualFs.existsSync(pathToCheck) if you want real checks for some paths
+        }),
     };
 });
 
 // Import the module to test *after* setting up mocks.
-// **ADJUST THE PATH TO YOUR cloneVoice.js FILE**
-// e.g., const { audioCloning } = require('../../routes/users/cloneVoice.js');
-const { audioCloning } = require('../../routes/users/cloneVoice.js'); // Assuming cloneVoice.js is in 'routes/users/' relative to project root
+// Adjust the path to your cloneVoice.js file.
+// If tests are in 'project_root/tests/performance/' and cloneVoice.js is in 'project_root/routes/users/',
+// the path should be '../../../routes/users/cloneVoice.js'.
+const { audioCloning } = require('../../routes/users/cloneVoice.js'); // CORRECTED PATH (ASSUMPTION)
+
 
 // ----- TEST SUITE -----
 describe('cloneVoice.js Performance Test', () => {
-
     let mockReq;
     let mockRes;
-    // Paths used by cloneVoice.js internally - ensure mocks or actual fs can handle them
-    const baseUserTempDir = path.join(__dirname, '../../../UserData/temp'); // Adjusted path assuming test is in 'tests/performance'
-    const multerTempDir = path.join(__dirname, '../../../tempUserData'); // Adjusted path for multer's temp
+    let next;
+
+    // Adjusted paths assuming test is in 'tests/performance' relative to project root
+    const baseUserTempDir = path.resolve(__dirname, '../../UserData/temp');
+    const multerTempDir = path.resolve(__dirname, '../../tempUserData');
 
     beforeAll(() => {
-        // Create actual directories if cloneVoice.js (or its mocks) rely on their existence
-        // The fs.mkdirSync mock above will handle calls from cloneVoice.js
-        // But if multer itself (not mocked here) needs a dir before our fs mock is active for it,
-        // then originalFs might be needed here. For now, assuming mkdirSync mock is sufficient.
+        // Create actual directories if needed for setup (e.g., multer writing a temp file before test)
         if (!originalFs.existsSync(baseUserTempDir)) {
             originalFs.mkdirSync(baseUserTempDir, { recursive: true });
         }
@@ -98,11 +114,17 @@ describe('cloneVoice.js Performance Test', () => {
     });
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        jest.clearAllMocks(); // Clear all mock call history and implementations
 
         const uniqueFileName = `temp_upload_${Date.now()}.mp3`;
+        const tempFilePath = path.join(multerTempDir, uniqueFileName);
+
+        // If cloneVoice relies on the temp file existing from multer, create a dummy one
+        // For this test, we'll assume the fs.createReadStream mock handles it.
+        // originalFs.writeFileSync(tempFilePath, 'dummydata');
+
         mockReq = {
-            headers: { // Added headers to fix 'transfer-encoding' error
+            headers: {
                 'content-type': 'multipart/form-data; boundary=---TESTBOUNDARY---'
             },
             body: {
@@ -110,24 +132,29 @@ describe('cloneVoice.js Performance Test', () => {
                 user_name: 'Performance Tester',
             },
             file: {
-                path: path.join(multerTempDir, uniqueFileName), // multer uses this path for the temp file
+                path: tempFilePath, // Path where multer would have put the file
                 originalname: 'test_audio_original.mp3',
                 mimetype: 'audio/mpeg',
                 size: 12345,
+                fieldname: 'voice_sample', // Often included by multer
+                // destination: multerTempDir, // Often included by multer
+                filename: uniqueFileName,    // Often included by multer
             },
-            uploadFilename: uniqueFileName
+            // If cloneVoice.js uses req.app.get('io') for socket.io
+            // app: { get: jest.fn().mockReturnValue({ emit: jest.fn() }) }
         };
 
         mockRes = {
             status: jest.fn().mockReturnThis(),
             json: jest.fn(),
-            headersSent: false,
+            headersSent: false, // To simulate Express res object state
         };
+        next = jest.fn(); // Mock for Express error handling
     });
 
     afterAll(() => {
-        // Optional: Clean up directories created in beforeAll if they are temporary
-        // For now, this is commented out; decide based on your needs.
+        // Clean up directories created for testing if they are temporary.
+        // Use originalFs for this.
         /*
         if (originalFs.existsSync(baseUserTempDir)) {
             originalFs.rmSync(baseUserTempDir, { recursive: true, force: true });
@@ -144,35 +171,65 @@ describe('cloneVoice.js Performance Test', () => {
             rabbitMqMessageSentResolve = resolve;
         });
 
-        mockSendToQueue.mockImplementation((queue, message, options) => {
-            rabbitMqMessageSentResolve();
-            return true;
+        // Ensure this specific mock implementation is used for this test
+        mockSendToQueue.mockImplementationOnce((queue, message, options) => {
+            // console.log('TEST DEBUG: mockSendToQueue custom implementation CALLED!');
+            if (rabbitMqMessageSentResolve) {
+                rabbitMqMessageSentResolve();
+            }
+            return true; // Consistent with original mock (sendToQueue returns boolean)
         });
+
+        // If fs.existsSync is important for logic paths in cloneVoice
+        // you might need to specify its behavior for certain paths:
+        // const fs = require('fs'); // Get the mocked fs
+        // fs.existsSync.mockImplementation(p => {
+        //    if (p === path.join(baseUserTempDir, `Performance Tester_perfTestUser123`)) return false; // e.g., dir does not exist first
+        //    return originalFs.existsSync(p); // fallback for other paths
+        // });
+
 
         const startTime = performance.now();
 
-        audioCloning(mockReq, mockRes);
+        // Assuming audioCloning is an async function or returns a Promise
+        // because it involves file operations and async RabbitMQ calls via pipeline
+        await audioCloning(mockReq, mockRes, next);
 
-        await rabbitMqMessageSentPromise; // Wait for sendToQueue to be called
+        // Now, wait for the sendToQueue to have been called (which resolves the promise)
+        await rabbitMqMessageSentPromise;
 
         const endTime = performance.now();
         const duration = endTime - startTime;
 
         console.log(`Time taken for audioCloning (until RabbitMQ sendToQueue called): ${duration.toFixed(3)} ms`);
 
+        expect(next).not.toHaveBeenCalled(); // Ensure no errors were passed to next()
         expect(mockRes.status).toHaveBeenCalledWith(202);
         expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-            message: 'Audio cloning request accepted',
-            status: 'pending',
+            message: 'Audio cloning request accepted', // Or whatever your success message is
+            status: 'pending', // Or your actual status
+            // correlationId: expect.any(String) // If you return correlationId
         }));
-        expect(mockGetChannelForRoute).toHaveBeenCalledWith('cloning');
-        expect(mockAssertQueue).toHaveBeenCalledWith('cloning', { durable: true });
-        expect(mockSendToQueue).toHaveBeenCalled();
 
-        const sentMessageBuffer = mockSendToQueue.mock.calls[0][1];
-        const sentMessage = JSON.parse(sentMessageBuffer.toString());
-        expect(sentMessage.user_id).toBe('perfTestUser123');
-        expect(sentMessage.user_name).toBe('Performance Tester');
-        expect(sentMessage.audio_path).toBeDefined();
-    }, 10000); // Increased timeout to 10 seconds just in case, default is 5s
+        expect(mockGetChannelForRoute).toHaveBeenCalledWith('cloning');
+        // Assertions on assertQueue might depend on how often getChannelForRoute is called
+        // If it's called once, assertQueue is called once.
+        if (mockGetChannelForRoute.mock.calls.length > 0) {
+             expect(mockAssertQueue).toHaveBeenCalledWith('cloning', { durable: true });
+        }
+        expect(mockSendToQueue).toHaveBeenCalled(); // Confirms the mock was called
+
+        // Further assertions on the message content
+        if (mockSendToQueue.mock.calls.length > 0) {
+            const sentMessageBuffer = mockSendToQueue.mock.calls[0][1];
+            const sentMessage = JSON.parse(sentMessageBuffer.toString());
+            expect(sentMessage.user_id).toBe('perfTestUser123');
+            expect(sentMessage.user_name).toBe('Performance Tester');
+            expect(sentMessage.audio_path).toBeDefined();
+            // expect(sentMessage.correlationId).toBeDefined(); // if part of payload
+        }
+
+        expect(duration).toBeLessThan(PERFORMANCE_THRESHOLD_MS);
+
+    }, 10000); // 10-second timeout
 });
