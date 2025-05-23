@@ -59,7 +59,6 @@ describe('addUser Route Handler', () => {
   });
 
   it('should create a new user successfully', async () => {
-    // Mock findOne to return null (user doesn't exist)
     mockFindOne.mockResolvedValueOnce(null);
     
     // Mock insertOne to return successful result
@@ -69,21 +68,17 @@ describe('addUser Route Handler', () => {
     
     await addUser(req, res);
     
-    // Check that findOne was called with correct user_id
     expect(mockFindOne).toHaveBeenCalledWith({ user_id: 'test-user-123' });
     
-    // Check that insertOne was called with the correct user object
     expect(mockInsertOne).toHaveBeenCalledWith(expect.objectContaining({
       user_id: 'test-user-123',
       user_name: 'Test User',
       voice_cloned: false
     }));
     
-    // Check that created_at was set
     const insertCall = mockInsertOne.mock.calls[0][0];
     expect(insertCall.created_at).toBeInstanceOf(Date);
     
-    // Verify response was correct
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       _id: 'mock-inserted-id-123',

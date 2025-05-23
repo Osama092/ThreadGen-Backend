@@ -52,8 +52,6 @@ describe('SSE Endpoints System Test', () => {
         const userId = 'testUser123';
 
         // Simulate a client connecting to the /subscribe endpoint
-        // Supertest doesn't directly support streaming, so we'll mock the response object
-        // and call the SSE handler directly.
         const req = {
             query: { user_id: userId },
             on: jest.fn((event, callback) => {
@@ -65,15 +63,6 @@ describe('SSE Endpoints System Test', () => {
         };
 
         // Call the SSE subscription handler directly
-        // We need to get the handler from the app's routes.
-        // This is a bit tricky with Supertest, so we'll simulate the Express middleware chain
-        // by calling the sseRequest.initializeSSE method which sets up the route.
-        // Since initializeSSE is called in beforeEach, we just need to trigger the route.
-        // For testing the /subscribe route, we'll manually call the handler.
-        // In a real scenario, you might export the handler directly for easier testing.
-
-        // Find the actual handler for '/subscribe' route
-        // This is a workaround as Supertest is not ideal for testing SSE streams directly.
         let subscribeHandler;
         app._router.stack.forEach(layer => {
             if (layer.route && layer.route.path === '/subscribe' && layer.route.methods.get) {
@@ -81,16 +70,14 @@ describe('SSE Endpoints System Test', () => {
             }
         });
 
-        expect(subscribeHandler).toBeDefined(); // Ensure the handler was found
+        expect(subscribeHandler).toBeDefined(); 
         subscribeHandler(req, mockRes);
 
-        // Assert that SSE headers are set
         expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream');
         expect(mockRes.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
         expect(mockRes.setHeader).toHaveBeenCalledWith('Connection', 'keep-alive');
         expect(mockRes.flushHeaders).toHaveBeenCalled();
 
-        // Assert that a welcome message is sent
         expect(mockRes.write).toHaveBeenCalledWith(`data: ${JSON.stringify({ user_id: "system", message: "Connected to SSE" })}\n\n`);
 
         // Verify that the user is registered as active
