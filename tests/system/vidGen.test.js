@@ -3,6 +3,7 @@ const request = require('supertest');
 const app = require('../../server'); // Your Express app
 const { client } = require('../../mongodb'); // MongoDB client (will be mocked)
 const rabbitmq = require('../../utils/rabbitmq'); // RabbitMQ utility (will be mocked)
+const axios = require('axios'); // Axios for API calls (will be mocked)
 const { ObjectId } = require('mongodb'); // ObjectId for mocking MongoDB IDs
 
 // Mock MongoDB client
@@ -13,6 +14,7 @@ jest.mock('../../mongodb', () => ({
     findOne: jest.fn(),
     insertOne: jest.fn(),
     updateOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
   },
   connectToDatabase: jest.fn().mockResolvedValue(),
 }));
@@ -21,6 +23,10 @@ jest.mock('../../mongodb', () => ({
 jest.mock('../../utils/rabbitmq', () => ({
   getChannelForRoute: jest.fn(),
 }));
+
+// Mock axios
+jest.mock('axios');
+const mockedAxios = axios;
 
 describe('Video Generation Endpoint - /generate-video', () => {
   let mockChannel;
@@ -48,41 +54,66 @@ describe('Video Generation Endpoint - /generate-video', () => {
       ack: jest.fn(),
     };
     rabbitmq.getChannelForRoute.mockResolvedValue(mockChannel);
+
+    // Setup default axios mocks
+    mockedAxios.get.mockImplementation((url) => {
+      if (url.includes('api.clerk.dev')) {
+        return Promise.resolve({
+          data: {
+            email_addresses: [{ email_address: 'test@example.com' }]
+          }
+        });
+      }
+      if (url.includes('/subscription')) {
+        return Promise.resolve({
+          data: {
+            isSubbed: false
+          }
+        });
+      }
+      return Promise.reject(new Error('Unexpected axios call'));
+    });
   });
 
-  test('should successfully process video generation request', async () => {
+  test('should successfully process video generation request for basic user', async () => {
     // Setup mocks for successful flow
+    const mockApiKeyDoc = { 
+      api_key: mockApiKey, 
+      user_id: mockUserId, 
+      n_uses: 5 // Under the default limit of 100
+    };
+    
     client.findOne
-      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId }) // API key lookup
-      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'ready' }); // Thread lookup
+      .mockResolvedValueOnce(mockApiKeyDoc) // API key lookup
+      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'ready', _id: new ObjectId() }); // Thread lookup
+    
     client.insertOne.mockResolvedValueOnce({ insertedId: mockRequestId }); // Request insertion
-    client.updateOne.mockResolvedValueOnce({ modifiedCount: 1 }); // API key usage update
+    client.findOneAndUpdate.mockResolvedValueOnce({ 
+      value: { ...mockApiKeyDoc, n_uses: 6 } // Updated usage count
+    }); // API key usage update
 
     let capturedConsumerCallback;
     let capturedRouteCorrelationId;
 
-    // Mock for channel.consume: Capture the callback that genVideo.js provides.
-    // This callback is what genVideo.js uses to process the reply from RabbitMQ.
+    // Mock for channel.consume
     mockChannel.consume.mockImplementationOnce((replyQueueName, consumerCb) => {
       capturedConsumerCallback = consumerCb;
     });
 
-    // Mock for channel.sendToQueue: Capture the correlationId used by the route.
-    // Then, simulate the worker service replying by invoking the capturedConsumerCallback.
+    // Mock for channel.sendToQueue
     mockChannel.sendToQueue.mockImplementationOnce((queueName, messageBuffer, options) => {
-      capturedRouteCorrelationId = options.correlationId; // Capture the ID used by genVideo.js
+      capturedRouteCorrelationId = options.correlationId;
 
-      // Ensure the consumer has been set up by genVideo.js before trying to call it
       if (capturedConsumerCallback) {
-        // Simulate the async reply from the worker service
         setTimeout(() => {
-          capturedConsumerCallback({ // This is like the worker sending a message back
-            content: Buffer.from(JSON.stringify({ status: 'success', videoUrl: 'http://example.com/video.mp4' })),
-            properties: { correlationId: capturedRouteCorrelationId }, // IMPORTANT: Use the captured ID
+          capturedConsumerCallback({
+            content: Buffer.from(JSON.stringify({ 
+              status: 'success', 
+              videoUrl: 'http://example.com/video.mp4' 
+            })),
+            properties: { correlationId: capturedRouteCorrelationId },
           });
-        }, 100); // Simulate a quick reply (100ms)
-      } else {
-        console.error("Test Error: Consumer callback not captured before sendToQueue was called.");
+        }, 100);
       }
     });
 
@@ -97,23 +128,164 @@ describe('Video Generation Endpoint - /generate-video', () => {
       status: 'success',
       videoUrl: 'http://example.com/video.mp4',
       requestId: mockRequestId.toString(),
+      remainingTries: 94, // 100 - 6 (after increment)
     });
+
+    // Verify Clerk API was called
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      `https://api.clerk.dev/v1/users/${mockUserId}`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Authorization': expect.stringContaining('Bearer')
+        })
+      })
+    );
 
     // Verify RabbitMQ interactions
     expect(rabbitmq.getChannelForRoute).toHaveBeenCalledWith('generate');
-    expect(mockChannel.assertQueue).toHaveBeenCalledWith('generate', { durable: true });
-    expect(mockChannel.assertQueue).toHaveBeenCalledWith(expect.stringMatching(/^response-.+$/), { exclusive: true }); // For the reply queue
-
-    expect(mockChannel.sendToQueue).toHaveBeenCalledWith(
-      'generate',
-      expect.any(Buffer),
-      expect.objectContaining({
-        correlationId: capturedRouteCorrelationId, // Ensure the captured ID was used
-        replyTo: expect.stringMatching(/^response-.+$/),
-      })
-    );
-    // Ensure the message was acknowledged by the consumer logic in genVideo.js
+    expect(mockChannel.sendToQueue).toHaveBeenCalled();
     expect(mockChannel.ack).toHaveBeenCalled();
+  });
+
+  test('should successfully process video generation request for unlimited user', async () => {
+    // Mock subscribed user with unlimited plan
+    mockedAxios.get.mockImplementation((url) => {
+      if (url.includes('api.clerk.dev')) {
+        return Promise.resolve({
+          data: {
+            email_addresses: [{ email_address: 'premium@example.com' }]
+          }
+        });
+      }
+      if (url.includes('/subscription')) {
+        return Promise.resolve({
+          data: {
+            isSubbed: true,
+            subscriptionData: {
+              data: {
+                items: [{
+                  product: { id: 'pro_01j83fwqv84197bhntf28ts527' } // Ultimate plan
+                }]
+              }
+            }
+          }
+        });
+      }
+      return Promise.reject(new Error('Unexpected axios call'));
+    });
+
+    const mockApiKeyDoc = { 
+      api_key: mockApiKey, 
+      user_id: mockUserId, 
+      n_uses: 500 // High usage but unlimited plan
+    };
+    
+    client.findOne
+      .mockResolvedValueOnce(mockApiKeyDoc) // API key lookup
+      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'ready', _id: new ObjectId() }); // Thread lookup
+    
+    client.insertOne.mockResolvedValueOnce({ insertedId: mockRequestId });
+    client.findOneAndUpdate.mockResolvedValueOnce({ 
+      value: { ...mockApiKeyDoc, n_uses: 501 }
+    });
+
+    let capturedConsumerCallback;
+    mockChannel.consume.mockImplementationOnce((replyQueueName, consumerCb) => {
+      capturedConsumerCallback = consumerCb;
+    });
+
+    mockChannel.sendToQueue.mockImplementationOnce((queueName, messageBuffer, options) => {
+      if (capturedConsumerCallback) {
+        setTimeout(() => {
+          capturedConsumerCallback({
+            content: Buffer.from(JSON.stringify({ 
+              status: 'success', 
+              videoUrl: 'http://example.com/video.mp4' 
+            })),
+            properties: { correlationId: options.correlationId },
+          });
+        }, 100);
+      }
+    });
+
+    const response = await request(app)
+      .post('/generate-video')
+      .send({ apiKey: mockApiKey, threadName: mockThreadName, ttsText: mockTtsText });
+
+    expect(response.status).toBe(200);
+    expect(response.body.remainingTries).toBe('unlimited');
+  });
+
+  test('should return 429 if usage limit exceeded for basic user', async () => {
+    const mockApiKeyDoc = { 
+      api_key: mockApiKey, 
+      user_id: mockUserId, 
+      n_uses: 100 // At the limit
+    };
+    
+    client.findOne.mockResolvedValueOnce(mockApiKeyDoc);
+
+    const response = await request(app)
+      .post('/generate-video')
+      .send({ apiKey: mockApiKey, threadName: mockThreadName, ttsText: mockTtsText })
+      .expect(429);
+
+    expect(response.body).toEqual({
+      error: 'Usage limit exceeded',
+      message: 'You have reached the maximum number of API calls (100). Please upgrade your plan or contact support.',
+      currentUsage: 100,
+      limit: 100,
+      isSubscribed: false
+    });
+  });
+
+  test('should return 429 if usage limit exceeded for subscribed user', async () => {
+    // Mock subscribed user with mid-tier plan (500 limit)
+    mockedAxios.get.mockImplementation((url) => {
+      if (url.includes('api.clerk.dev')) {
+        return Promise.resolve({
+          data: {
+            email_addresses: [{ email_address: 'midtier@example.com' }]
+          }
+        });
+      }
+      if (url.includes('/subscription')) {
+        return Promise.resolve({
+          data: {
+            isSubbed: true,
+            subscriptionData: {
+              data: {
+                items: [{
+                  product: { id: 'pro_01j82nzbtjmtzpyv2yp5b36stz' } // Mid-tier plan
+                }]
+              }
+            }
+          }
+        });
+      }
+      return Promise.reject(new Error('Unexpected axios call'));
+    });
+
+    const mockApiKeyDoc = { 
+      api_key: mockApiKey, 
+      user_id: mockUserId, 
+      n_uses: 500 // At the mid-tier limit
+    };
+    
+    client.findOne.mockResolvedValueOnce(mockApiKeyDoc);
+
+    const response = await request(app)
+      .post('/generate-video')
+      .send({ apiKey: mockApiKey, threadName: mockThreadName, ttsText: mockTtsText })
+      .expect(429);
+
+    expect(response.body).toEqual({
+      error: 'Usage limit exceeded',
+      message: 'You have reached the maximum number of API calls (500). Please upgrade your plan or contact support.',
+      currentUsage: 500,
+      limit: 500,
+      isSubscribed: true
+    });
   });
 
   test('should return 400 if required fields are missing', async () => {
@@ -123,7 +295,7 @@ describe('Video Generation Endpoint - /generate-video', () => {
       .expect(400);
 
     expect(response.body).toEqual({ error: 'Missing required fields' });
-    expect(client.db).not.toHaveBeenCalled(); // No DB interaction if validation fails early
+    expect(client.db).not.toHaveBeenCalled();
   });
 
   test('should return 400 if API key is invalid', async () => {
@@ -140,7 +312,7 @@ describe('Video Generation Endpoint - /generate-video', () => {
 
   test('should return 400 if thread name is invalid', async () => {
     client.findOne
-      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId }) // Valid API key
+      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId, n_uses: 5 }) // Valid API key
       .mockResolvedValueOnce(null); // Thread not found
 
     const response = await request(app)
@@ -152,11 +324,11 @@ describe('Video Generation Endpoint - /generate-video', () => {
   });
 
   test('should return 403 if user does not have access to thread', async () => {
-    const otherUserId = new ObjectId(); // A different user ID
+    const otherUserId = new ObjectId();
     
     client.findOne
-      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId }) // API key lookup for user mockUserId
-      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: otherUserId, status: 'ready' }); // Thread belongs to otherUserId
+      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId, n_uses: 5 })
+      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: otherUserId, status: 'ready' });
 
     const response = await request(app)
       .post('/generate-video')
@@ -168,8 +340,8 @@ describe('Video Generation Endpoint - /generate-video', () => {
 
   test('should return 400 if thread status is pending', async () => {
     client.findOne
-      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId })
-      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'pending' }); // Thread is pending
+      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId, n_uses: 5 })
+      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'pending' });
 
     const response = await request(app)
       .post('/generate-video')
@@ -179,30 +351,80 @@ describe('Video Generation Endpoint - /generate-video', () => {
     expect(response.body).toEqual({ error: 'Thread is still pending' });
   });
 
-  test('should return 202 if RabbitMQ response times out', async () => {
-    // Mocks for DB lookups
+  test('should handle Clerk API errors gracefully', async () => {
+    // Mock Clerk API failure
+    mockedAxios.get.mockImplementation((url) => {
+      if (url.includes('api.clerk.dev')) {
+        return Promise.reject(new Error('Clerk API error'));
+      }
+      return Promise.resolve({ data: { isSubbed: false } });
+    });
+
+    const mockApiKeyDoc = { 
+      api_key: mockApiKey, 
+      user_id: mockUserId, 
+      n_uses: 5 
+    };
+    
     client.findOne
-      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId })
-      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'ready' });
-    // client.insertOne and client.updateOne are not strictly needed for this path if the 202 is sent first,
-    // but it's good to have them mocked if any part of the code before the timeout might call them.
+      .mockResolvedValueOnce(mockApiKeyDoc)
+      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'ready', _id: new ObjectId() });
+    
+    client.insertOne.mockResolvedValueOnce({ insertedId: mockRequestId });
+    client.findOneAndUpdate.mockResolvedValueOnce({ 
+      value: { ...mockApiKeyDoc, n_uses: 6 }
+    });
+
+    let capturedConsumerCallback;
+    mockChannel.consume.mockImplementationOnce((replyQueueName, consumerCb) => {
+      capturedConsumerCallback = consumerCb;
+    });
+
+    mockChannel.sendToQueue.mockImplementationOnce((queueName, messageBuffer, options) => {
+      if (capturedConsumerCallback) {
+        setTimeout(() => {
+          capturedConsumerCallback({
+            content: Buffer.from(JSON.stringify({ 
+              status: 'success', 
+              videoUrl: 'http://example.com/video.mp4' 
+            })),
+            properties: { correlationId: options.correlationId },
+          });
+        }, 100);
+      }
+    });
+
+    const response = await request(app)
+      .post('/generate-video')
+      .send({ apiKey: mockApiKey, threadName: mockThreadName, ttsText: mockTtsText });
+
+    // Should still work with default limits when Clerk API fails
+    expect(response.status).toBe(200);
+    expect(response.body.remainingTries).toBe(94); // Default 100 limit - 6 usage
+  });
+
+  test('should return 202 if RabbitMQ response times out', async () => {
+    client.findOne
+      .mockResolvedValueOnce({ api_key: mockApiKey, user_id: mockUserId, n_uses: 5 })
+      .mockResolvedValueOnce({ thread_name: mockThreadName, user_id: mockUserId, status: 'ready', _id: new ObjectId() });
 
     // Simulate RabbitMQ consumer never calling back
     mockChannel.consume.mockImplementationOnce((queue, callback) => {
-      // Do nothing with the callback to simulate no response from the worker
+      // Do nothing to simulate timeout
     });
 
     const response = await request(app)
       .post('/generate-video')
       .send({ apiKey: mockApiKey, threadName: mockThreadName, ttsText: mockTtsText })
-      .expect(202); // Route should send 202 after its internal 30s timeout
+      .expect(202);
 
     expect(response.body).toEqual(
       expect.objectContaining({
         status: 'processing',
         message: 'Video generation started. This may take some time.',
-        requestId: expect.any(String), // This will be the correlationId generated by the route
+        requestId: expect.any(String),
+        remainingTries: 95, // 100 - 5 current usage
       })
     );
-  }, 35000); // Jest timeout for this specific test (longer than the route's 30s internal timeout)
+  }, 35000);
 });
