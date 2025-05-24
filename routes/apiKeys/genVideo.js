@@ -3,6 +3,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { getChannelForRoute } = require('../../utils/rabbitmq');
 const { client } = require('../../mongodb');
+const axios = require('axios');
 
 const generateVideo = async (req, res) => {
     const { apiKey, threadName, ttsText } = req.body;
@@ -24,6 +25,88 @@ const generateVideo = async (req, res) => {
         } else {
             console.log('API Key found:', apiKeyDoc);
         }
+
+
+
+        let userLimit = 100; 
+        let isSubscribed = false;
+
+        // Fetch user details from Clerk API
+        try {
+            const clerkResponse = await axios.get(`https://api.clerk.dev/v1/users/${apiKeyDoc.user_id}`, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`
+                }
+            });
+            
+            if (clerkResponse.data && clerkResponse.data.email_addresses && clerkResponse.data.email_addresses.length > 0) {
+                const userEmail = clerkResponse.data.email_addresses[0].email_address;
+                console.log(`User email: ${userEmail}`);
+                
+                // Check user subscription status
+                try {
+                    const subscriptionResponse = await axios.get('http://localhost:5000/subscription', {
+                        data: {
+                            email: userEmail
+                        }
+                    });
+                    
+                    if (subscriptionResponse.data && subscriptionResponse.data.isSubbed !== undefined) {
+                        isSubscribed = subscriptionResponse.data.isSubbed;
+                        console.log(`User subscription status (isSubbed): ${isSubscribed}`);
+                        
+                        if (isSubscribed && subscriptionResponse.data.subscriptionData && 
+                            subscriptionResponse.data.subscriptionData.data && 
+                            subscriptionResponse.data.subscriptionData.data.items && 
+                            subscriptionResponse.data.subscriptionData.data.items.length > 0) {
+                            
+                            const productId = subscriptionResponse.data.subscriptionData.data.items[0].product.id;
+                            console.log('product id', productId);
+                            
+                            // Set limits based on product ID
+                            switch (productId) {
+                                case 'pro_01j83fwqv84197bhntf28ts527': // Ultimate plan
+                                    userLimit = Infinity; // Unlimited
+                                    console.log('User has Ultimate plan - unlimited usage');
+                                    break;
+                                case 'pro_01j82nzbtjmtzpyv2yp5b36stz': // Mid-tier plan
+                                    userLimit = 500;
+                                    console.log('User has mid-tier plan - 500 usage limit');
+                                    break;
+                                case 'pro_01j82nweft36pcrgwt9zcek5g2': // Basic plan
+                                    userLimit = 100;
+                                    console.log('User has basic plan - 100 usage limit');
+                                    break;
+                                default:
+                                    userLimit = 100; // Default to basic limit
+                                    console.log('Unknown product ID, defaulting to 100 usage limit');
+                            }
+                        }
+                    }
+                } catch (subscriptionError) {
+                    console.error('Error fetching subscription status:', subscriptionError.message);
+                }
+            }
+        } catch (clerkError) {
+            console.error('Error fetching user details from Clerk:', clerkError.message);
+        }
+
+        // Check usage against the determined limit
+        if (apiKeyDoc.n_uses >= userLimit) {
+            console.log(`User ${apiKeyDoc.user_id} has exceeded their usage limit: ${apiKeyDoc.n_uses}/${userLimit === Infinity ? 'unlimited' : userLimit}`);
+            return res.status(429).json({ 
+                error: 'Usage limit exceeded', 
+                message: `You have reached the maximum number of API calls (${userLimit === Infinity ? 'unlimited' : userLimit}). Please upgrade your plan or contact support.`,
+                currentUsage: apiKeyDoc.n_uses,
+                limit: userLimit === Infinity ? 'unlimited' : userLimit,
+                isSubscribed: isSubscribed
+            });
+        }
+
+        // Calculate remaining tries
+        const remainingTries = userLimit === Infinity ? 'unlimited' : userLimit - apiKeyDoc.n_uses;
+        console.log(`User ${apiKeyDoc.user_id} usage check passed: ${apiKeyDoc.n_uses}/${userLimit === Infinity ? 'unlimited' : userLimit}. Remaining tries: ${remainingTries}`);
+
 
 
         
@@ -71,7 +154,8 @@ const generateVideo = async (req, res) => {
                 res.status(202).json({ 
                     status: 'processing', 
                     message: 'Video generation started. This may take some time.',
-                    requestId: correlationId
+                    requestId: correlationId,
+                    remainingTries: remainingTries
                 });
             }
         }, 30000);
@@ -98,10 +182,21 @@ const generateVideo = async (req, res) => {
                             const requestResult = await requestsCollection.insertOne(newRequest);
                             console.log("Inserted Request:", requestResult.insertedId);
 
-                            await apiKeysCollection.updateOne(
+                            // Update API key usage count and get the updated document
+                            const updateResult = await apiKeysCollection.findOneAndUpdate(
                                 { api_key: apiKey },
-                                { $inc: { n_uses: 1 } }
+                                { $inc: { n_uses: 1 } },
+                                { returnDocument: 'after' }
                             );
+                            
+                            // Log the total API key uses for this user and calculate new remaining tries
+                            if (updateResult.value) {
+                                const newRemainingTries = userLimit === Infinity ? 'unlimited' : userLimit - updateResult.value.n_uses;
+                                console.log(`Total API key uses for user ${apiKeyDoc.user_id}: ${updateResult.value.n_uses}. Remaining tries after this request: ${newRemainingTries}`);
+                                
+                                // Add the updated remaining tries to the response
+                                response.remainingTries = newRemainingTries;
+                            }
                             
                             // Add the request ID to the response
                             response.requestId = requestResult.insertedId;
@@ -109,6 +204,11 @@ const generateVideo = async (req, res) => {
                             console.error('Error adding request record:', requestError);
                             // Continue with the response even if request logging fails
                         }
+                    }
+                    
+                    // Add remaining tries to response if not already added
+                    if (!response.remainingTries) {
+                        response.remainingTries = remainingTries;
                     }
                     
                     // Only send response if it hasn't been sent yet
@@ -138,7 +238,6 @@ const generateVideo = async (req, res) => {
         
         console.log(`Request sent to generation service with correlation ID: ${correlationId}`);
         
-        // Note: We're not sending the response here, it will be sent when we receive the response from RabbitMQ or when the timeout occurs
     } catch (error) {
         console.error('Error in video generation process:', error);
         if (!res.headersSent) {
