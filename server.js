@@ -12,6 +12,7 @@ const { connectToDatabase, client } = require('./mongodb');
 const { getKeys } = require('./routes/apiKeys/getKeys.js');
 const { deleteKey } = require('./routes/apiKeys/deleteKey.js');
 const { addKey } = require('./routes/apiKeys/addKey.js');
+const { patchKey } = require('./routes/apiKeys/patchKey.js');
 const { getPlayerConfig } = require('./routes/apiKeys/getPlayerConfig.js');
 const { generateVideo } = require('./routes/apiKeys/genVideo.js');
 const { getUserApiKeys } = require('./routes/apiKeys/getUserApiKeys.js');
@@ -87,7 +88,7 @@ app.get('/api-keys', getKeys);
 app.post('/api-keys/add-key', addKey);
 app.delete('/api-keys/delete-key/:key', deleteKey);
 app.get('/api-keys/get-user-api-keys', getUserApiKeys);
-
+app.patch('/api-keys/patch-key/:key', patchKey)
 // Campaign routes
 app.get('/campaigns/:user_id', getCampaignsByUser);
 app.post('/campaigns/add-campaign', addCampaign);
