@@ -12,7 +12,9 @@ const getUserApiKeys = async (req, res) => {
     const collection = database.collection('api_keys');
     console.log("Connected to the collection: api_keys");
 
-    const data = await collection.find({ user_id }).toArray(); 
+    // Modified line: Add the filter for 'deleted' field
+    const data = await collection.find({ user_id, deleted: { $ne: true } }).toArray();
+
     console.log(`Fetched data for user ${user_id}:`, data);
 
     res.json(data);

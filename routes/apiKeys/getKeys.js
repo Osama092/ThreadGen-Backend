@@ -8,7 +8,7 @@ const getKeys = async (req, res) => {
 
     // Fetch documents where 'deleted' is not true
     const data = await collection.find({ deleted: { $ne: true } }).toArray();
-    console.log("Fetched data:", data);
+    console.log("Fetched data keys:", data);
 
     res.json(data);
   } catch (error) {

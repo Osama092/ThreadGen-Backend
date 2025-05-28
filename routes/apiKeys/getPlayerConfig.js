@@ -32,7 +32,7 @@ const getPlayerConfig = async (req, res) => {
     const user_name = userDoc.user_name;
 
     // Step 3: Check if the folder {user_name}_{user_id} exists in userData/temp
-    const userFolder = path.join(__dirname, '..', 'userData', 'temp', `${user_name}_${user_id}`);
+    const userFolder = path.join(__dirname, '..','..', 'userData', 'temp', `${user_name}_${user_id}`);
     if (!fs.existsSync(userFolder)) {
       return res.status(404).json({ message: "User folder not found", userFolder });
     }
@@ -86,5 +86,6 @@ const getPlayerConfig = async (req, res) => {
     res.status(500).send('Error fetching config');
   }
 };
+
 
 module.exports = { getPlayerConfig };

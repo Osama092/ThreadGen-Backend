@@ -31,6 +31,7 @@ const addCampaign = async (req, res) => {
       status: "pending",
       video_url: ""
     }));
+    console.log("Processed TTS List:", processedTTSList);
 
     const database = client.db('flowgen_db');
     const apikeyCollection = database.collection('api_keys');

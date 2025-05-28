@@ -31,6 +31,8 @@ const { startCloneListener } = require('./routes/users/cloneListener.js');
 
 const { addKPIs } = require('./routes/users/addKPIs.js');
 const { getUserKPIs } = require('./routes/users/getUserKPIs.js');
+const { getUserById } = require('./routes/users/getUser.js');
+
 
 // Route handlers - Threads
 const { getThreads } = require('./routes/threads/getThreads.js');
@@ -75,6 +77,7 @@ connectToDatabase().then(() => {
 // API Routes
 // User routes
 app.post('/users', addUser);
+app.get('/users/:user_id', getUserById);
 
 // Thread routes
 app.get('/threads', getThreads);

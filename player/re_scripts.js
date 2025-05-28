@@ -489,7 +489,7 @@ async function fetchVideoData(requestBody) {
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch('http://192.168.1.23:5000/generate-video', {
+    const res = await fetch('http://localhost:5000/generate-video', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: requestBody,
@@ -516,7 +516,7 @@ async function fetchPlayerConfig(requestBody) {
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch('http://192.168.1.23:5000/player-config', {
+    const res = await fetch('http://localhost:5000/player-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: requestBody,
@@ -754,7 +754,7 @@ async function sendKPIData(event_type) {
     
     console.log(`Sending final KPI data (${event_type}):`, kpiPayload);
     
-    const response = await fetch('http://192.168.1.23:5000/player-kpi', {
+    const response = await fetch('http://localhost:5000/player-kpi', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

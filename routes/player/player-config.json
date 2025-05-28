@@ -1,0 +1,49 @@
+{
+  "player": {
+    "muted": true
+  },
+  "colors": {
+    "primary": "#ff0000"
+  },
+  "behavior": {
+    "pauseOnTabChange": true,
+    "startThumbnail": {
+      "enabled": true,
+      "imagePath": "../UserData/temp/Test User_user_2wMMIH2GVRlIVKiUvOFjTbvjsWy/deploy test/start_thumbnail.png"
+    },
+    "thumbnailOnPause": {
+      "enabled": true,
+      "showAfterSeconds": 10,
+      "imagePath": "../UserData/temp/Test User_user_2wMMIH2GVRlIVKiUvOFjTbvjsWy/deploy test/pause_thumbnail.png"
+    },
+    "thumbnailOnEnd": {
+      "enabled": true,
+      "imagePath": "../UserData/temp/Test User_user_2wMMIH2GVRlIVKiUvOFjTbvjsWy/deploy test/end_thumbnail.png"
+    },
+    "linearSpeedFactor": 10,
+    "keyboardControlsEnabled": false
+  },
+  "captions": {
+    "enabled": true,
+    "defaultTrack": "en-US",
+    "tracks": [
+      {
+        "src": "en_dolphin.com.vtt",
+        "kind": "subtitles",
+        "label": "English",
+        "srclang": "en-US",
+        "default": true
+      }
+    ],
+    "styling": {
+      "fontSize": "100%",
+      "backgroundColor": "rgba(0, 0, 0, 0.7)",
+      "textColor": "#FFFFFF",
+      "padding": "0.6em 0.4em"
+    }
+  },
+  "unmute": {
+    "showUnmuteOverlay": true,
+    "unmuteText": "Unmute so you can mute the unmuted"
+  }
+}

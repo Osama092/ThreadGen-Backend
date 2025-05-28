@@ -2,7 +2,9 @@ const { client } = require('../../mongodb');
 
 const getUserThreads = async (req, res) => {
   try {
-    const { user_id } = req.query; // Changed from req.body to req.query
+    const { user_id } = req.query;
+
+    console.log("Received request to get user threads for user_id:", user_id);
 
     if (!user_id) {
       return res.status(400).send('User ID is required');
