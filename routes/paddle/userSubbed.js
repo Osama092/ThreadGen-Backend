@@ -3,10 +3,10 @@ const express = require('express');
 const app = express();
 require('dotenv').config();
 
-
 const PADDLE_API_URL_SUBSCRIPTION = 'https://sandbox-api.paddle.com/subscriptions';
 const PADDLE_API_URL_TRANSACTIONS = 'https://sandbox-api.paddle.com/transactions';
 const BEARER_TOKEN = process.env.PADDLE_BEARER_TOKEN;
+
 app.use(express.json());
 
 const getSubscriptions = async (req, res) => {
@@ -18,12 +18,14 @@ const getSubscriptions = async (req, res) => {
             }
         });
 
-
         const subscriptions = response.data.data;
         const findSubscriptionByEmail = (email) => {
             return subscriptions.find(sub => sub.custom_data && sub.custom_data.customer_email === email);
         };
         const subscription = findSubscriptionByEmail(email);
+        console.log('subscriptions found:', subscription.length) ;
+        console.log(JSON.stringify(subscriptions, null, 2));
+
 
         let isSubbed = false;
         let subscriptionData = null;
@@ -33,6 +35,7 @@ const getSubscriptions = async (req, res) => {
         if (subscription) {
             isSubbed = subscription.status === "active";
             const subscriptionsId = subscription.id;
+            const customerId = subscription.customer_id;
 
             try {
                 const responseSub = await axios.get(`${PADDLE_API_URL_SUBSCRIPTION}/${subscriptionsId}`, {
@@ -55,10 +58,10 @@ const getSubscriptions = async (req, res) => {
                 });
                 const transactions = responseTransaction.data.data;
 
-                transactionDataTable = transactions.filter(transaction => transaction.customer_id === 'ctm_01j85abzynewfd3226hz93hszk')
+                transactionDataTable = transactions.filter(transaction => transaction.customer_id === customerId)
                 transactionData = transactions
-                    .filter(transaction => transaction.customer_id === 'ctm_01j85abzynewfd3226hz93hszk')
-                    .filter(transaction => transaction.subscription_id === 'sub_01j8gft0hf51w4byr39sdc77t8');
+                    .filter(transaction => transaction.customer_id === customerId)
+                    .filter(transaction => transaction.subscription_id === subscriptionsId);
             } catch (error) {
                 console.error(`Error fetching transactions from Paddle API:`, error);
                 res.status(500).json({ error: 'Internal Server Error' });
